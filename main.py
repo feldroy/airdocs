@@ -2,7 +2,7 @@ import importlib
 from pathlib import Path
 
 import air
-from air_markdown.tags import AirMarkdown
+from AirMarkdown.tags import AirMarkdown
 from fastapi import HTTPException
 import sentry_sdk
 from os import getenv

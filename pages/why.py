@@ -1,7 +1,7 @@
 from random import sample
 
 import air
-from air_markdown.tags import AirMarkdown
+from AirMarkdown.tags import AirMarkdown
 
 
 def reasons_not_to_use_air():
