@@ -2,7 +2,7 @@ import json
 import random
 
 import air
-from air_markdown.tags import AirMarkdown
+from AirMarkdown.tags import AirMarkdown
 
 
 def sorted_random_list():
