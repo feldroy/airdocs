@@ -64,9 +64,15 @@ Take a look at the files. You'll see a folder structure that looks like this:
 └── pyproject.toml
 ```
 
+These files are:
+
+- **README.md** - Every project should have a README providing not just the name of the project, but also how to install and run it
+- **main.py** - Where the code for most of this tutorial will go
+- **pyproject.toml** - A standardized configuration file for Python projects that defines build system requirements, dependencies, and tool settings in a single place.
+
 ## Step 2: Create and activate the virtualenv
 
-To avoid `airchat` from installing things globally, we're going to have limit its dependencies to just airchat. To do that, have **uv** create a virtualenv
+To avoid `airchat` from installing things globally, we limit its dependencies to just airchat. To do that, have **uv** create a virtualenv
 
 ```sh
 uv venv
@@ -93,6 +99,28 @@ Air is designed to be both easy to use for development and easy to deploy. For n
 ```sh
 uv add "air[standard]"
 ```
+
+## Step 4: Creating the first view
+
+Open up the `main.py` file and remove all the code in there and replace it with this:
+
+```python
+import air
+
+app = air.Air()
+
+@app.get("/")
+async def index():
+    return air.layouts.mvpcss(
+        air.H1("Hello, Airchat!"),
+        air.P("Breathe it in.")
+    )
+```
+
+
+
+
+
 
 ## Unfinished
 
