@@ -205,3 +205,14 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+
+# START Ruler Generated Files
+*.bak
+.gemini/settings.json
+.gemini/settings.json.bak
+AGENT.md
+AGENT.md.bak
+GEMINI.md
+GEMINI.md.bak
+# END Ruler Generated Files
