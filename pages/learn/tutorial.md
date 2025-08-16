@@ -238,7 +238,7 @@ async def lifespan(app):
 
 app = air.Air(lifespan=lifespan)
 
-@app.get("/")
+@app.page
 async def index():
     return air.layouts.mvpcss(
         air.H1("Air Blog"),
@@ -249,8 +249,8 @@ async def index():
         )
     )
 
-@app.get("/new-article")
-async def new_article_form():
+@app.page
+async def new_article():
     form = BlogArticleForm()
     return air.layouts.mvpcss(
         air.H1("Create New Article"),
@@ -315,8 +315,8 @@ async def create_article(request: air.Request):
 Let's add views to list and display individual articles:
 
 ```python
-@app.get("/articles")
-async def list_articles():
+@app.page
+async def articles():
     with next(get_session()) as session:
         # Get only published articles, ordered by date
         statement = select(BlogArticle).where(BlogArticle.is_published == True).order_by(BlogArticle.date_published.desc())
