@@ -117,9 +117,19 @@ async def index():
     )
 ```
 
+Run it with:
+
+```sh
+fastapi dev
+```
+
+Try it out at [http://localhost:8000](http://localhost:8000). You should see a simple page with the title "Air Blog" and a subtitle "Breathe in good writing."
+
 ## Step 5: Adding database dependencies
 
 A blog needs to store articles, so let's add database support. We'll use SQLModel (which combines SQLAlchemy and Pydantic) with SQLite for simplicity:
+
+Stop the server if it's running using `ctrl-c`, then add the SQLModel dependency:
 
 ```sh
 uv add sqlmodel
@@ -209,6 +219,7 @@ from air import AirForm, AirField
 from typing import List
 
 class BlogArticleFormModel(BaseModel):
+    # TODO: leverage in AirForm to inherit directly from models.BlogArticle
     title: str = AirField(max_length=200, label="Article Title")
     description: str = AirField(max_length=500, label="Short Description")
     body: str = AirField(type="textarea", label="Article Body")
@@ -224,90 +235,63 @@ class BlogArticleForm(AirForm):
 Update your `main.py` to include form views:
 
 ```python
-import air
-import json
-from contextlib import asynccontextmanager
 from datetime import datetime
-from models import create_db_and_tables, BlogArticle, get_session, BlogArticleForm
-from sqlmodel import Session, select
+from typing import Optional, List
+from sqlmodel import SQLModel, Field, create_engine, Session
+import json
 
-@asynccontextmanager
-async def lifespan(app):
-    create_db_and_tables()
-    yield
-
-app = air.Air(lifespan=lifespan)
-
-@app.page
-async def index():
-    return air.layouts.mvpcss(
-        air.H1("Air Blog"),
-        air.P("Breathe in good writing."),
-        air.Nav(
-            air.A("View Articles", href="/articles"),
-            air.A("New Article", href="/new-article"),
-        )
-    )
-
-@app.page
-async def new_article():
-    form = BlogArticleForm()
-    return air.layouts.mvpcss(
-        air.H1("Create New Article"),
-        air.Form(
-            form.render(),
-            air.Button("Create Article", type="submit"),
-            action="/articles",
-            method="post"
-        ),
-        air.A("← Back to Blog", href="/")
-    )
-
-@app.post("/articles")
-async def create_article(request: air.Request):
-    form = BlogArticleForm()
-    form_data = await request.form()
+class BlogArticle(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    title: str = Field(max_length=200)
+    description: str = Field(max_length=500)
+    body: str
+    tags: str = Field(default="")  # Store as JSON string
+    date_published: Optional[datetime] = Field(default=None)
+    is_published: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
     
-    if form.validate(form_data):
-        # Create new article from validated data
-        with next(get_session()) as session:
-            # Convert tags string to list for storage
-            tags_list = [tag.strip() for tag in form.data.tags.split(",") if tag.strip()]
-            
-            article = BlogArticle(
-                title=form.data.title,
-                description=form.data.description,
-                body=form.data.body,
-                tags=json.dumps(tags_list),
-                is_published=form.data.is_published,
-                date_published=datetime.utcnow() if form.data.is_published else None
-            )
-            session.add(article)
-            session.commit()
-            session.refresh(article)
-        
-        return air.layouts.mvpcss(
-            air.H1("Article Created!"),
-            air.P(f"Your article '{article.title}' has been created."),
-            air.Nav(
-                air.A("View Article", href=f"/articles/{article.id}"),
-                air.A("Back to Blog", href="/"),
-                air.A("Create Another", href="/new-article")
-            )
-        )
-    else:
-        # Form validation failed, show errors
-        return air.layouts.mvpcss(
-            air.H1("Create New Article"),
-            air.P("Please correct the errors below:", style="color: red;"),
-            air.Form(
-                form.render(),
-                air.Button("Create Article", type="submit"),
-                action="/articles",
-                method="post"
-            ),
-            air.A("← Back to Blog", href="/")
-        )
+    @property
+    def tags_list(self) -> List[str]:
+        """Convert tags JSON string to list"""
+        if not self.tags:
+            return []
+        try:
+            return json.loads(self.tags)
+        except json.JSONDecodeError:
+            return []
+    
+    @tags_list.setter
+    def tags_list(self, value: List[str]):
+        """Convert tags list to JSON string"""
+        self.tags = json.dumps(value)
+
+# Database setup
+DATABASE_URL = "sqlite:///./blog.db"
+engine = create_engine(DATABASE_URL)
+
+def create_db_and_tables():
+    SQLModel.metadata.create_all(engine)
+
+def get_session():
+    with Session(engine) as session:
+        yield session
+
+
+# Forms, try to leverage in 
+from pydantic import BaseModel
+from air import AirForm, AirField
+from typing import List
+
+class BlogArticleFormModel(BaseModel):
+    title: str = AirField(max_length=200, label="Article Title", autofocus=True)
+    description: str = AirField(max_length=500, label="Short Description")
+    body: str = AirField(type="textarea", label="Article Body")
+    tags: str = AirField(default="", label="Tags (comma-separated)", placeholder="python, web, tutorial")
+    is_published: bool = AirField(default=False, label="Publish immediately")
+
+class BlogArticleForm(AirForm):
+    model = BlogArticleFormModel        
 ```
 
 ## Step 10: Displaying articles
