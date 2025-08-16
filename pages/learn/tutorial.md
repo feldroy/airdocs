@@ -199,6 +199,170 @@ async def index():
     )
 ```
 
+## Step 8: Creating forms for blog articles
+
+Now let's create forms to add and edit blog articles. First, add the form model to your `models.py` file:
+
+```python
+from pydantic import BaseModel
+from air import AirForm, AirField
+from typing import List
+
+class BlogArticleFormModel(BaseModel):
+    title: str = AirField(max_length=200, label="Article Title")
+    description: str = AirField(max_length=500, label="Short Description")
+    body: str = AirField(type="textarea", label="Article Body")
+    tags: str = AirField(default="", label="Tags (comma-separated)", placeholder="python, web, tutorial")
+    is_published: bool = AirField(default=False, label="Publish immediately")
+
+class BlogArticleForm(AirForm):
+    model = BlogArticleFormModel
+```
+
+## Step 9: Adding form views
+
+Update your `main.py` to include form views:
+
+```python
+import air
+import json
+from contextlib import asynccontextmanager
+from datetime import datetime
+from models import create_db_and_tables, BlogArticle, get_session, BlogArticleForm
+from sqlmodel import Session, select
+
+@asynccontextmanager
+async def lifespan(app):
+    create_db_and_tables()
+    yield
+
+app = air.Air(lifespan=lifespan)
+
+@app.get("/")
+async def index():
+    return air.layouts.mvpcss(
+        air.H1("Air Blog"),
+        air.P("Breathe in good writing."),
+        air.Nav(
+            air.A("View Articles", href="/articles"),
+            air.A("New Article", href="/new-article"),
+        )
+    )
+
+@app.get("/new-article")
+async def new_article_form():
+    form = BlogArticleForm()
+    return air.layouts.mvpcss(
+        air.H1("Create New Article"),
+        air.Form(
+            form.render(),
+            air.Button("Create Article", type="submit"),
+            action="/articles",
+            method="post"
+        ),
+        air.A("← Back to Blog", href="/")
+    )
+
+@app.post("/articles")
+async def create_article(request: air.Request):
+    form = BlogArticleForm()
+    form_data = await request.form()
+    
+    if form.validate(form_data):
+        # Create new article from validated data
+        with next(get_session()) as session:
+            # Convert tags string to list for storage
+            tags_list = [tag.strip() for tag in form.data.tags.split(",") if tag.strip()]
+            
+            article = BlogArticle(
+                title=form.data.title,
+                description=form.data.description,
+                body=form.data.body,
+                tags=json.dumps(tags_list),
+                is_published=form.data.is_published,
+                date_published=datetime.utcnow() if form.data.is_published else None
+            )
+            session.add(article)
+            session.commit()
+            session.refresh(article)
+        
+        return air.layouts.mvpcss(
+            air.H1("Article Created!"),
+            air.P(f"Your article '{article.title}' has been created."),
+            air.Nav(
+                air.A("View Article", href=f"/articles/{article.id}"),
+                air.A("Back to Blog", href="/"),
+                air.A("Create Another", href="/new-article")
+            )
+        )
+    else:
+        # Form validation failed, show errors
+        return air.layouts.mvpcss(
+            air.H1("Create New Article"),
+            air.P("Please correct the errors below:", style="color: red;"),
+            air.Form(
+                form.render(),
+                air.Button("Create Article", type="submit"),
+                action="/articles",
+                method="post"
+            ),
+            air.A("← Back to Blog", href="/")
+        )
+```
+
+## Step 10: Displaying articles
+
+Let's add views to list and display individual articles:
+
+```python
+@app.get("/articles")
+async def list_articles():
+    with next(get_session()) as session:
+        # Get only published articles, ordered by date
+        statement = select(BlogArticle).where(BlogArticle.is_published == True).order_by(BlogArticle.date_published.desc())
+        articles = session.exec(statement).all()
+    
+    article_list = []
+    for article in articles:
+        article_list.extend([
+            air.Article(
+                air.H2(air.A(article.title, href=f"/articles/{article.id}")),
+                air.P(article.description),
+                air.Small(f"Published: {article.date_published.strftime('%B %d, %Y')}"),
+                air.P(f"Tags: {', '.join(article.tags_list)}" if article.tags_list else "")
+            )
+        ])
+    
+    return air.layouts.mvpcss(
+        air.H1("All Articles"),
+        *article_list if article_list else [air.P("No articles published yet.")],
+        air.A("← Back to Blog", href="/"),
+        air.A("Create New Article", href="/new-article")
+    )
+
+@app.get("/articles/{article_id}")
+async def view_article(article_id: int):
+    with next(get_session()) as session:
+        article = session.get(BlogArticle, article_id)
+        if not article or not article.is_published:
+            return air.layouts.mvpcss(
+                air.H1("Article Not Found"),
+                air.P("The article you're looking for doesn't exist or isn't published."),
+                air.A("← Back to Blog", href="/")
+            )
+    
+    return air.layouts.mvpcss(
+        air.H1(article.title),
+        air.P(article.description, style="font-style: italic; font-size: 1.2em;"),
+        air.Small(f"Published: {article.date_published.strftime('%B %d, %Y')}"),
+        air.P(f"Tags: {', '.join(article.tags_list)}" if article.tags_list else ""),
+        air.Hr(),
+        air.Div(article.body.replace('\n', '<br>'), style="white-space: pre-wrap;"),
+        air.Hr(),
+        air.A("← Back to Articles", href="/articles")
+    )
+```
+
 
 
 
