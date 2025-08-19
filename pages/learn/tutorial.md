@@ -347,7 +347,133 @@ async def view_article(article_id: int):
     )
 ```
 
+## Appendix: Entire project code
 
+Still not done yet, this is our entire project code. Still need to:
 
+- add editing of form
+- fixing top nav issues with MVP CSS layout, the difference between the HeaderNav and Main is too great. This is in Air, not the tutorial.
 
+```python
+import air
+import json
+from contextlib import asynccontextmanager
+from datetime import datetime
+from models import create_db_and_tables, BlogArticle, get_session, BlogArticleForm
+from sqlmodel import Session, select
 
+@asynccontextmanager
+async def lifespan(app):
+    create_db_and_tables()
+    yield
+
+app = air.Air(lifespan=lifespan)
+
+@app.page
+async def index():
+    return air.layouts.mvpcss(
+        air.Header(
+            air.Nav(
+                air.A("View Articles", href="/articles"),
+                air.A("New Article", href="/new-article"),
+            ),    
+            air.H1("Air Blog"),
+            air.P("Breathe in good writing."),
+        )
+    )
+
+@app.get('/new-article')
+async def new_article():
+    form = BlogArticleForm()
+    return air.layouts.mvpcss(
+        air.Header(
+            air.Nav(
+                air.A("Home", href="/"),
+                air.A("Articles", href="/articles")
+            ),            
+            air.H1("Create New Article"),
+            air.Form(
+                form.render(),
+                air.Br(),
+                air.Button("Create Article", type="submit"),
+                action="/articles",
+                method="post"
+            ),
+        )
+    )
+
+@app.post("/articles")
+async def create_article(request: air.Request):
+    form = BlogArticleForm()
+    form_data = await request.form()
+    
+    if form.validate(form_data):
+        # Create new article from validated data
+        with next(get_session()) as session:
+            # Convert tags string to list for storage
+            tags_list = [tag.strip() for tag in form.data.tags.split(",") if tag.strip()]
+            
+            article = BlogArticle(
+                title=form.data.title,
+                description=form.data.description,
+                body=form.data.body,
+                tags=json.dumps(tags_list),
+                is_published=form.data.is_published,
+                date_published=datetime.utcnow() if form.data.is_published else None
+            )
+            session.add(article)
+            session.commit()
+            session.refresh(article)
+        
+        return air.layouts.mvpcss(
+            air.H1("Article Created!"),
+            air.P(f"Your article '{article.title}' has been created."),
+            air.Nav(
+                air.A("Home", href="/"),
+                air.A("View Article", href=f"/articles/{article.id}"),
+                air.A("Create Another", href="/new-article")
+            )
+        )
+    else:
+        # Form validation failed, show errors
+        return air.layouts.mvpcss(
+            air.H1("Create New Article"),
+            air.P("Please correct the errors below:", style="color: red;"),
+            air.Form(
+                form.render(),
+                air.Button("Create Article", type="submit"),
+                action="/articles",
+                method="post"
+            ),
+            air.A("← Back to Blog", href="/")
+        )
+    
+@app.page
+async def articles():
+    with next(get_session()) as session:
+        # Get only published articles, ordered by date
+        statement = select(BlogArticle).where(BlogArticle.is_published == True).order_by(BlogArticle.date_published.desc())
+        articles = session.exec(statement).all()
+
+    article_list = []
+    for article in articles:
+        article_list.extend([
+            air.Article(
+                air.H2(air.A(article.title, href=f"/articles/{article.id}")),
+                air.P(article.description),
+                air.Small(f"Published: {article.date_published.strftime('%B %d, %Y')}"),
+                air.P(f"Tags: {', '.join(article.tags_list)}" if article.tags_list else "")
+            )
+        ])
+
+    return air.layouts.mvpcss(
+        air.Header(
+            air.Nav(
+                    air.A("Home", href="/"),
+                    air.A("Create New Article", href="/new-article")
+            ),        
+            air.H1("All Articles"),
+            *article_list if article_list else [air.P("No articles published yet.")],
+        ),
+    )
+```
