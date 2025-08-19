@@ -22,7 +22,7 @@ By doing it, you will receive notifications (in your email) whenever there's a n
 
 ## Participate in discussions
 
-Our primary location for chat is our [Discord chat server](https://discord.gg/5sze6AbW).  
+Our primary location for chat is our [Discord chat server](https://discord.gg/nhPNn4bw6R).  
 
 We also will be using [Discussions](https://github.com/feldroy/air/discussions) in GitHub.
 
