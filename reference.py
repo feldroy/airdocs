@@ -7,11 +7,12 @@ from typing import Any, List, ParamSpec,TypeVar, Callable
 
 import air
 from air_markdown.tags import AirMarkdown
+import griffe
 
 app = air.Air()
 
 renderer = air.JinjaRenderer("templates")
-
+air_package = griffe.load('air', docstring_parser="google")
 
 def layout(request: air.Request, *content):
     if not isinstance(request, air.Request):
@@ -62,10 +63,14 @@ reference_warning = air.Section(
 
 @app.page
 async def index(request: air.Request):
+    # modules = [
+    #     air.Li(air.A(x, href=f"/reference/{x}"))
+    #     for x in sorted(list(set([x.__module__ for x in _get_air_objects()])))
+    # ]
     modules = [
         air.Li(air.A(x, href=f"/reference/{x}"))
-        for x in sorted(list(set([x.__module__ for x in _get_air_objects()])))
-    ]
+        for x in sorted(air_package.modules.keys())
+    ]    
     return layout(
         request, air.Article(air.H1("API Reference"), reference_warning, air.Ul(*modules), class_="prose")
     )
@@ -170,24 +175,61 @@ def doc_obj(obj):
         air.H2(obj.__name__, air.Small(f"  ({obj.__module__}.{obj.__name__})")),
         AirMarkdown(doc)
     )
+    
 
 
-@app.get("/{module_name:path}")
+# @app.get("/{module_name:path}")
+# def reference_module(request: air.Request, module_name: str):
+#     module = importlib.import_module(module_name)
+#     objects = [
+#         x
+#         for x in _get_air_objects()
+#         if x.__module__ == module_name and not isinstance(x, (ParamSpec, TypeVar))
+#     ]
+#     objects = [doc_obj(x) for x in sorted(objects, key=lambda x: x.__name__)]
+#     return layout(
+#         request,
+#         air.Article(
+#             air.H1(air.A("API Reference:", href="/reference"), " ", module_name),
+#             reference_warning,
+#             AirMarkdown(module.__doc__ if module.__doc__ is not None else ''),
+#             air.Ul(*objects),
+#             class_="prose",
+#         ),
+#     )
+
+
+def _get_parsed_docstring(obj: griffe._internal.models.Module) -> str:
+    if obj.has_docstring:
+        return '\n'.join([x.value for x in obj.docstring.parsed])
+
+
+@app.get("/{module_name:str}")
 def reference_module(request: air.Request, module_name: str):
-    module = importlib.import_module(module_name)
-    objects = [
-        x
-        for x in _get_air_objects()
-        if x.__module__ == module_name and not isinstance(x, (ParamSpec, TypeVar))
-    ]
-    objects = [doc_obj(x) for x in sorted(objects, key=lambda x: x.__name__)]
+    # 1. list all the classes
+    # 2. list all the functions
+    module = air_package.modules[module_name]
+    # Get the module docstring
+    module_docstring = '\n'.join([x.value for x in module.docstring.parsed]) if module.has_docstring else ''
+    # Members list
+    members = []
+    # Get all the classes
+    for key, obj in module.classes.items():
+        text = f'## {key}\n\n'
+        text += '\n'.join([x.value for x in obj.docstring.parsed]) if obj.has_docstring else ''
+        members.append(
+            AirMarkdown(text)
+        )
     return layout(
         request,
         air.Article(
             air.H1(air.A("API Reference:", href="/reference"), " ", module_name),
             reference_warning,
-            AirMarkdown(module.__doc__ if module.__doc__ is not None else ''),
-            air.Ul(*objects),
+            AirMarkdown(module_docstring),
+            air.Br(),
+            *members,
+            # AirMarkdown(module.__doc__ if module.__doc__ is not None else ''),
+            # air.Ul(*objects),
             class_="prose",
         ),
-    )
+    )    
