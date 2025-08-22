@@ -82,7 +82,26 @@ def error_check():
 
 @app.get("/llms.txt")
 async def llms_txt():
-    return air.responses.FileResponse("llms.txt")
+    text = """
+# Air Web Framework - Context for LLMs
+
+Air is a Python web framework that provides a friendly layer over FastAPI for building modern web applications that combine beautiful HTML pages with powerful REST APIs.
+
+## Core Characteristics
+
+- **Built on FastAPI**: Air extends FastAPI, so anything you can do with FastAPI, you can do with Air
+- **HTML-First**: Designed to make generating HTML with Python fast and intuitive
+- **Type-Friendly**: Heavily typed and documented for excellent IDE/AI integration
+- **HTMX Integration**: First-class support for HTMX for reactive web applications
+"""
+    for path in Path('pages/concepts').glob('**/*.md'):
+        text += f"\n\n{path.read_text()}"
+    for path in Path('pages/cookbook').glob('**/*.md'):
+        text += f"\n\n{path.read_text()}"        
+    return air.responses.PlainTextResponse(text)
+
+
+
 
 
 @app.page
