@@ -1,3 +1,6 @@
+> [!IMPORTANT]  
+> To expedite authoring of documentation, this project has been merged into [AIR core](https://github.com/feldroy/air)
+
 # airdocs
 
 ## Install
